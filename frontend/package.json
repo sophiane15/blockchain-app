@@ -14,5 +14,5 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
-  "proxy": "http://localhost:5000"  // Remplacez par l'URL de votre backend
+  "proxy": "https://blockchain-backend.onrender.com"  // Remplacez par l'URL de votre backend
 }
