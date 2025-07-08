@@ -21,3 +21,6 @@ def full_chain():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))  # Render utilise le PORT env
+    app.run(host='0.0.0.0', port=port)  # Important pour Render
