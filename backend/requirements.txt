@@ -1,3 +1,4 @@
 flask==2.0.3
-werkzeug==2.3.7  # Version compatible avec Flask 2.x
+werkzeug==2.3.7
+flask-cors==3.0.10  # <-- Ajoutez cette ligne
 python-dotenv==1.0.0
