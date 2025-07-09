@@ -1,54 +1,109 @@
 import hashlib
 import json
-from datetime import datetime
-
-class Block:
-    def __init__(self, index, transactions, previous_hash, nonce=0):
-        self.index = index
-        self.transactions = transactions
-        self.previous_hash = previous_hash
-        self.nonce = nonce
-        self.timestamp = str(datetime.now())
-        self.hash = self.calculate_hash()
-
-    def calculate_hash(self):
-        block_data = json.dumps({
-            "index": self.index,
-            "transactions": self.transactions,
-            "previous_hash": self.previous_hash,
-            "nonce": self.nonce,
-            "timestamp": self.timestamp
-        }, sort_keys=True).encode()
-        return hashlib.sha256(block_data).hexdigest()
+from time import time
+from uuid import uuid4
+from flask import Flask, jsonify, request
+import os  # Import placé en haut avec les autres imports
 
 class Blockchain:
     def __init__(self):
-        self.chain = [self.create_genesis_block()]
-        self.pending_transactions = []
-        self.difficulty = 4  # Nombre de zéros requis pour le hash
-
-    def create_genesis_block(self):
-        return Block(0, ["Genesis Block"], "0")
-
-    def add_transaction(self, sender, receiver, amount):
-        self.pending_transactions.append({
-            "sender": sender,
-            "receiver": receiver,
-            "amount": amount
-        })
-
-    def mine_pending_transactions(self):
-        new_block = Block(
-            index=len(self.chain),
-            transactions=self.pending_transactions,
-            previous_hash=self.chain[-1].hash
-        )
+        self.chain = []
+        self.current_transactions = []
+        self.nodes = set()
         
-        # Proof of Work
-        while not new_block.hash.startswith('0' * self.difficulty):
-            new_block.nonce += 1
-            new_block.hash = new_block.calculate_hash()
+        # Création du bloc genesis
+        self.new_block(previous_hash='1', proof=100)
 
-        self.chain.append(new_block)
-        self.pending_transactions = []
-        print(f"Bloc #{new_block.index} miné ! Hash: {new_block.hash[:10]}...")
+    def new_block(self, proof, previous_hash=None):
+        block = {
+            'index': len(self.chain) + 1,
+            'timestamp': time(),
+            'transactions': self.current_transactions,
+            'proof': proof,
+            'previous_hash': previous_hash or self.hash(self.chain[-1]),
+        }
+        
+        self.current_transactions = []
+        self.chain.append(block)
+        return block
+
+    def new_transaction(self, sender, recipient, amount):
+        self.current_transactions.append({
+            'sender': sender,
+            'recipient': recipient,
+            'amount': amount,
+        })
+        return self.last_block['index'] + 1
+
+    @staticmethod
+    def hash(block):
+        block_string = json.dumps(block, sort_keys=True).encode()
+        return hashlib.sha256(block_string).hexdigest()
+
+    @property
+    def last_block(self):
+        return self.chain[-1]
+
+    def proof_of_work(self, last_proof):
+        proof = 0
+        while self.valid_proof(last_proof, proof) is False:
+            proof += 1
+        return proof
+
+    @staticmethod
+    def valid_proof(last_proof, proof):
+        guess = f'{last_proof}{proof}'.encode()
+        guess_hash = hashlib.sha256(guess).hexdigest()
+        return guess_hash[:4] == "0000"
+
+# Initialisation de l'application Flask
+app = Flask(__name__)
+blockchain = Blockchain()
+
+@app.route('/mine', methods=['GET'])
+def mine():
+    last_block = blockchain.last_block
+    last_proof = last_block['proof']
+    proof = blockchain.proof_of_work(last_proof)
+    
+    blockchain.new_transaction(
+        sender="0",  # 0 indique que c'est une nouvelle pièce
+        recipient=str(uuid4()),  # Crée une adresse aléatoire
+        amount=1,
+    )
+    
+    previous_hash = blockchain.hash(last_block)
+    block = blockchain.new_block(proof, previous_hash)
+    
+    response = {
+        'message': "New Block Forged",
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+    }
+    return jsonify(response), 200
+
+@app.route('/transactions/new', methods=['POST'])
+def new_transaction():
+    values = request.get_json()
+    required = ['sender', 'recipient', 'amount']
+    if not all(k in values for k in required):
+        return 'Missing values', 400
+    
+    index = blockchain.new_transaction(values['sender'], values['recipient'], values['amount'])
+    response = {'message': f'Transaction will be added to Block {index}'}
+    return jsonify(response), 201
+
+@app.route('/chain', methods=['GET'])
+def full_chain():
+    response = {
+        'chain': blockchain.chain,
+        'length': len(blockchain.chain),
+    }
+    return jsonify(response), 200
+
+# Configuration pour Render
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))  # Utilise le PORT de Render ou 5000 par défaut
+    app.run(host='0.0.0.0', port=port)  # Important pour Render
