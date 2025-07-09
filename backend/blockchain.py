@@ -3,16 +3,12 @@ import json
 from time import time
 from uuid import uuid4
 from flask import Flask, jsonify, request
-import os  # Import placé en haut avec les autres imports
 
 class Blockchain:
     def __init__(self):
         self.chain = []
         self.current_transactions = []
-        self.nodes = set()
-        
-        # Création du bloc genesis
-        self.new_block(previous_hash='1', proof=100)
+        self.new_block(previous_hash='1', proof=100)  # Bloc genesis
 
     def new_block(self, proof, previous_hash=None):
         block = {
@@ -22,7 +18,6 @@ class Blockchain:
             'proof': proof,
             'previous_hash': previous_hash or self.hash(self.chain[-1]),
         }
-        
         self.current_transactions = []
         self.chain.append(block)
         return block
@@ -44,19 +39,6 @@ class Blockchain:
     def last_block(self):
         return self.chain[-1]
 
-    def proof_of_work(self, last_proof):
-        proof = 0
-        while self.valid_proof(last_proof, proof) is False:
-            proof += 1
-        return proof
-
-    @staticmethod
-    def valid_proof(last_proof, proof):
-        guess = f'{last_proof}{proof}'.encode()
-        guess_hash = hashlib.sha256(guess).hexdigest()
-        return guess_hash[:4] == "0000"
-
-# Initialisation de l'application Flask
 app = Flask(__name__)
 blockchain = Blockchain()
 
@@ -64,11 +46,11 @@ blockchain = Blockchain()
 def mine():
     last_block = blockchain.last_block
     last_proof = last_block['proof']
-    proof = blockchain.proof_of_work(last_proof)
+    proof = 0  # Simplifié pour l'exemple
     
     blockchain.new_transaction(
-        sender="0",  # 0 indique que c'est une nouvelle pièce
-        recipient=str(uuid4()),  # Crée une adresse aléatoire
+        sender="0",
+        recipient=str(uuid4()),
         amount=1,
     )
     
@@ -102,8 +84,3 @@ def full_chain():
         'length': len(blockchain.chain),
     }
     return jsonify(response), 200
-
-# Configuration pour Render
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # Utilise le PORT de Render ou 5000 par défaut
-    app.run(host='0.0.0.0', port=port)  # Important pour Render
